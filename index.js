@@ -1,13 +1,17 @@
+// Import mysql for database connections and express for Hosting 
 const mysql  = require("mysql");
 const express = require("express");
 const app = express();
+
+
+//Import body parser to parse requests of API endpoints
 
 let bodyParser = require('body-parser');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-
+//Connect to database in Amazon AWS RDS
 const db = mysql.createConnection({
     host: "database1.cpdmkc3lyqh2.us-east-1.rds.amazonaws.com",
     port: "3306",
@@ -16,6 +20,7 @@ const db = mysql.createConnection({
     database: "myfirstdb"
 });
 
+//Report any connection errors
 db.connect((err) => {
     if(err){
         console.log(err);
@@ -80,15 +85,20 @@ app.post("/books",(req,res) =>{
         price: req.body.price,
         quantity: req.body.quantity
         };
+
+        //Check for presence of all the parameters
         if(! ("ISBN" in req.body) || ! ("title" in req.body) || ! ("Author" in req.body) || ! ("description" in req.body) || !("genre" in req.body) || !("price" in req.body) || !("quantity" in req.body)){
             res.status(400).json({
                 statusCode: 400,
                 message : "Missing parameters in the input"
             });
         }
+
+        //check for valid price
         else if("price" in book){
             let priceAsString = req.body["price"].toString().split(".");
-            if (priceAsString.length != 2 || ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0)  ){
+            console.log(priceAsString);
+            if (priceAsString.length > 2 || ( priceAsString.length ==2  && ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0) ) ){
                 res.status(400).json({
                     statusCode: 400,
                     message : "Invalid book price"
@@ -100,6 +110,7 @@ app.post("/books",(req,res) =>{
             else{
                 let query = db.query(sql,book, (err,res1) => {
                     if(err) {
+                        //Check for duplicate entries 
                         if (err.code.localeCompare('ER_DUP_ENTRY') == 0){
                             console.log("Entry exits");
                             res.status(422).json({
@@ -109,7 +120,9 @@ app.post("/books",(req,res) =>{
                         }
                     }
                     else{
-                        res.status(200).json({...req.body, "success":200});
+
+                        //Return response for successful insertion
+                        res.status(201).json({...req.body, "success":201});
                     }
                 });
             }
@@ -130,6 +143,8 @@ app.put('/books/:isbn',(req,res) =>{
             });
         }
         else{
+
+            //Check for presence of the entry with given ISBN number
             if(result.length == 0){
                 res.status(404).json({
                     statusCode: 404,
@@ -146,15 +161,19 @@ app.put('/books/:isbn',(req,res) =>{
                     price: req.body.price,
                     quantity: req.body.quantity
                     };
+
+                    //Check for presence of all the parameters
                     if(! ("title" in req.body) || ! ("Author" in req.body) || ! ("description" in req.body) || !("genre" in req.body) || !("price" in req.body) || !("quantity" in req.body)){
                         res.status(400).json({
                             statusCode: 400,
                             message : "Missing parameters in the input"
                         });
                     }
+
+                    //check for valid price
                     else if("price" in book){
                         let priceAsString = book["price"].toString().split(".");
-                        if (priceAsString.length != 2 || ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0)  ){
+                        if (priceAsString.length > 2 || ( priceAsString.length ==2  && ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0) ) ){
                             res.status(400).json({
                                 statusCode: 400,
                                 message : "Invalid book price"
@@ -167,6 +186,7 @@ app.put('/books/:isbn',(req,res) =>{
 
                             let query = db.query(fsql,(err,res1) => {
                                 if(err) {
+                                        //Check for any other errors
                                         console.log(err.message);
                                         res.status(500).json({
                                                 statusCode: 500,
@@ -174,6 +194,7 @@ app.put('/books/:isbn',(req,res) =>{
                                             });
                                 }
                                 else{
+                                    //Return response for successful updation
                                     res.status(200).json({...book, "success":200});
                                 }
                             });
@@ -191,6 +212,7 @@ app.get('/books/isbn/:isbn',(req,res) =>{
     let query = db.query(sql, (err,result) => {
         if(err) throw err;
         else{
+            //Check for presence of the entry with given ISBN number
             if(result.length == 0){
                 res.status(404).json({
                     statusCode: 404,
@@ -198,6 +220,7 @@ app.get('/books/isbn/:isbn',(req,res) =>{
                 });
             }
             else{
+                //Return response for successful retrieval
                 res.status(200).json({
                     statusCode: 200,
                     message : result[0]
@@ -215,12 +238,14 @@ app.get('/books/:isbn',(req,res) =>{
         if(err) throw err;
         else{
             if(result.length == 0){
+                //Check for presence of the entry with given ISBN number
                 res.status(404).json({
                     statusCode: 404,
                     message : "ISBN not found"
                 });
             }
             else{
+                //Return response for successful retrieval
                 res.status(200).json({
                     statusCode: 200,
                     message : result[0]
@@ -230,17 +255,20 @@ app.get('/books/:isbn',(req,res) =>{
     });
 });
 
+
+//Function to validate email 
+
 const validateEmail = (email) => {
     return email.match(
       /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
     );
   };
   
+//Array of all the US states for validation
 const states = ["AL","AK","AS","AZ","AR","CA","CO","CT","DE","DC","FM","FL","GA","GU","HI","ID","IL","IN","IA","KS","KY","LA","ME","MH","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","MP","OH","OK","OR","PW","PA","PR","RI","SC","SD","TN","TX","UT","VT","VI","VA","WA","WV","WI","WY"];
 
 //=================================API end point for adding a customer to customer table===========================
 app.post("/customers",(req,res) =>{
-    console.log("in customers");
     console.log(req.body);
     let body = req.body;
     let sql = 'INSERT INTO customers SET ?';
@@ -257,6 +285,7 @@ app.post("/customers",(req,res) =>{
         let sql2 = `SELECT * FROM customers WHERE userId = '${req.body.userId}'`;
         console.log(sql2)
     let query = db.query(sql2, (err,result) => {
+        //Check for presence of all the parameters
         if(err){
             res.status(400).json({
                 statusCode: 404,
@@ -264,6 +293,7 @@ app.post("/customers",(req,res) =>{
             });
         }
         else{
+            //Check for presence of userid in the system
             if(result.length != 0){
                 res.status(422).json({
                     statusCode: 422,
@@ -271,13 +301,15 @@ app.post("/customers",(req,res) =>{
                 });
             }
             else{
-
+                //Check for presence of all the parameters
                 if(! ("userId" in req.body) || ! ("name" in req.body) || ! ("phone" in req.body) || ! ("address" in req.body) || !("city" in req.body) || !("state" in req.body) || !("zipcode" in req.body)){
                     res.status(400).json({
                         statusCode: 400,
                         message : "Missing parameters in the input"
                     });
                 }
+
+                //Check for valid email and us state
                 else if(! validateEmail(req.body.userId) || req.body.state.length != 2 || states.indexOf(req.body.state) == -1){
                     res.status(400).json({
                         statusCode: 400,
@@ -286,11 +318,12 @@ app.post("/customers",(req,res) =>{
                 }
         
                     else{
-                        if (! ("phone" in req.body)){
+                        if (! ("address2" in req.body)){
                             req.body = {...req.body, "address2" : ""};
                         }
                         let query = db.query(sql,req.body, (err,res1) => {
                             if(err) {
+                                //Check for presence of duplicate entries of customers
                                 if (err.code.localeCompare('ER_DUP_ENTRY') == 0){
                                     console.log("Entry exits");
                                     res.status(422).json({
@@ -300,7 +333,8 @@ app.post("/customers",(req,res) =>{
                                 }
                             }
                             else{
-                                res.status(200).json({...req.body, "success":200});
+                                //Return response for successful insertion
+                                res.status(201).json({...req.body, "success":201});
                             }
                         });
                     }
@@ -316,19 +350,22 @@ app.get('/customers/:id',(req,res) =>{
     let sql = `SELECT * FROM customers WHERE id = ${req.params.id}`;
     let query = db.query(sql, (err,result) => {
         if(err){
+            //Check for presence of all the parameters
             res.status(400).json({
-                statusCode: 404,
+                statusCode: 400,
                 message : "Illegal, missing or malformed input"
             });
         }
         else{
             if(result.length == 0){
+                //Return response in absence of a customer in the database
                 res.status(404).json({
                     statusCode: 404,
                     message : "Customer not found"
                 });
             }
             else{
+                //Return response for successful retrieval
                 res.status(200).json({
                     statusCode: 200,
                     message : result[0]
@@ -344,20 +381,22 @@ app.get('/customers',(req,res) =>{
     let sql = `SELECT * FROM customers WHERE userId = '${req.query.userId}'`;
     let query = db.query(sql, (err,result) => {
         if(err){
-            console.log("err",err);
+            //Check for presence of all the parameters
             res.status(400).json({
-                statusCode: 404,
+                statusCode: 400,
                 message : "Illegal, missing or malformed input"
             });
         }
         else{
             if(result.length == 0){
+                //Return response in absence of a customer in the database
                 res.status(404).json({
                     statusCode: 404,
                     message : "Customer not found"
                 });
             }
             else{
+                //Return response for successful retrieval
                 res.status(200).json({
                     statusCode: 200,
                     message : result[0]
@@ -367,7 +406,7 @@ app.get('/customers',(req,res) =>{
     });
 });
 
-
+//=================================API end point for retrieving all customers from customer table===========================
 app.get('/customerall',(req,res) =>{
     let sql = `SELECT * FROM customers `;
     console.log(sql);
@@ -399,7 +438,7 @@ app.get('/customerall',(req,res) =>{
 
 
 app.listen('3000', () => {
-    console.log("Server up on port 3000");
+    console.log("Server up on port 3001");
 });
 
 
