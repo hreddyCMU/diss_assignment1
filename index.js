@@ -97,8 +97,13 @@ app.post("/books",(req,res) =>{
         //check for valid price
         else if("price" in book){
             let priceAsString = req.body["price"].toString().split(".");
-            console.log(priceAsString);
-            if (priceAsString.length > 2 || ( priceAsString.length ==2  && ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0) ) ){
+            if(isNaN(req.body.price)){
+                res.status(400).json({
+                    statusCode: 400,
+                    message : "Invalid book price"
+                });
+            }
+            else if (priceAsString.length > 2 || ( priceAsString.length ==2  && ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0) ) ){
                 res.status(400).json({
                     statusCode: 400,
                     message : "Invalid book price"
@@ -108,23 +113,37 @@ app.post("/books",(req,res) =>{
             }
 
             else{
-                let query = db.query(sql,book, (err,res1) => {
-                    if(err) {
-                        //Check for duplicate entries 
-                        if (err.code.localeCompare('ER_DUP_ENTRY') == 0){
-                            console.log("Entry exits");
-                            res.status(422).json({
-                                    statusCode: 422,
-                                    message : "This ISBN already exists in the system"
+                if(isNaN(req.body.quantity) || !Number.isInteger(req.body.quantity)){
+                    res.status(400).json({
+                        statusCode: 400,
+                        message : "Invalid book quantity. It must be an integer"
+                    });
+                }
+                else{
+                    let query = db.query(sql,book, (err,res1) => {
+                        if(err) {
+                            //Check for duplicate entries 
+                            if (err.code.localeCompare('ER_DUP_ENTRY') == 0){
+                                console.log("Entry exits");
+                                res.status(422).json({
+                                        statusCode: 422,
+                                        message : "This ISBN already exists in the system"
+                                    });
+                            }
+                            else{
+                                res.status(500).json({
+                                    statusCode: 500,
+                                    message : "Server error!"
                                 });
+                            }
                         }
-                    }
-                    else{
-
-                        //Return response for successful insertion
-                        res.status(201).json({...req.body, "success":201});
-                    }
-                });
+                        else{
+    
+                            //Return response for successful insertion
+                            res.status(201).json({...req.body, "success":201});
+                        }
+                    });
+                }
             }
 
         }
@@ -155,7 +174,7 @@ app.put('/books/:isbn',(req,res) =>{
                 let book = {
                     isbn: req.body.ISBN,
                     title: req.body.title,
-                    author: req.body.author,
+                    author: req.body.Author,
                     description: req.body.description,
                     genre: req.body.genre,
                     price: req.body.price,
@@ -173,7 +192,13 @@ app.put('/books/:isbn',(req,res) =>{
                     //check for valid price
                     else if("price" in book){
                         let priceAsString = book["price"].toString().split(".");
-                        if (priceAsString.length > 2 || ( priceAsString.length ==2  && ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0) ) ){
+                        if (isNaN(req.body.price)){
+                            res.status(400).json({
+                                statusCode: 400,
+                                message : "Invalid book price"
+                            });
+                        }
+                        else if (priceAsString.length > 2 || ( priceAsString.length ==2  && ! (priceAsString[1].length ==2 || priceAsString[1].length ==1 || priceAsString[1].length ==0) ) || (isNaN(req.body.price))){
                             res.status(400).json({
                                 statusCode: 400,
                                 message : "Invalid book price"
@@ -182,22 +207,30 @@ app.put('/books/:isbn',(req,res) =>{
                         }
             
                         else{
-                            let fsql = `UPDATE books SET title = '${req.body.title}', author = '${req.body.Author}', description = '${req.body.description}', genre = '${req.body.genre}', price = '${req.body.price}', quantity = '${req.body.quantity}' where isbn = '${req.params.isbn}'`;
+                            if(isNaN(req.body.quantity) || !Number.isInteger(req.body.quantity)){
+                                res.status(400).json({
+                                    statusCode: 400,
+                                    message : "Invalid book quantity. It must be an integer"
+                                });
+                            }
+                            else{
+                                let fsql = `UPDATE books SET title = '${req.body.title}', author = '${req.body.Author}', description = '${req.body.description}', genre = '${req.body.genre}', price = '${req.body.price}', quantity = '${req.body.quantity}' where isbn = '${req.params.isbn}'`;
 
-                            let query = db.query(fsql,(err,res1) => {
-                                if(err) {
-                                        //Check for any other errors
-                                        console.log(err.message);
-                                        res.status(500).json({
-                                                statusCode: 500,
-                                                message : "Server error. Try again!"
-                                            });
-                                }
-                                else{
-                                    //Return response for successful updation
-                                    res.status(200).json({...book, "success":200});
-                                }
-                            });
+                                let query = db.query(fsql,(err,res1) => {
+                                    if(err) {
+                                            //Check for any other errors
+                                            console.log(err.message);
+                                            res.status(500).json({
+                                                    statusCode: 500,
+                                                    message : "Server error. Try again!"
+                                                });
+                                    }
+                                    else{
+                                        //Return response for successful updation
+                                        res.status(200).json({...book, "success":200});
+                                    }
+                                });
+                            }
                         }
             
                     }
@@ -210,7 +243,12 @@ app.put('/books/:isbn',(req,res) =>{
 app.get('/books/isbn/:isbn',(req,res) =>{
     let sql = `SELECT * FROM books WHERE isbn = '${req.params.isbn}'`;
     let query = db.query(sql, (err,result) => {
-        if(err) throw err;
+        if(err) {
+            res.status(500).json({
+                statusCode: 500,
+                message : "Server error"
+            });
+        }
         else{
             //Check for presence of the entry with given ISBN number
             if(result.length == 0){
@@ -330,6 +368,12 @@ app.post("/customers",(req,res) =>{
                                             statusCode: 422,
                                             message : "This user ID already exists in the system"
                                         });
+                                }
+                                else{
+                                    res.status(500).json({
+                                        statusCode: 500,
+                                        message : "Server error!"
+                                    });
                                 }
                             }
                             else{
